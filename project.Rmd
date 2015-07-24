@@ -1,0 +1,125 @@
+## Introduction
+
+```{r}
+require("tm")
+require("pipeR")
+require('wordcloud')
+require("data.table")
+require('ggplot2')
+```
+
+### Cache
+
+```{r}
+require(filehash)
+cache.fn <- "cache/dbCache"
+if (!file.exists('cache')) dir.create('cache')
+if (!file.exists(cache.fn)) dbCreate(cache.fn)
+dbCache <- dbInit(cache.fn)
+```
+
+## Data acquisition and cleaning
+
+
+### Obtaining the data
+
+```{r}
+
+if (!file.exists('data')) dir.create('data')
+zip.url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+zip.fn <- "data/Coursera-SwiftKey.zip"
+if (!file.exists(zip.fn)) download.file(zip.url, destfile=zip.fn, method="curl")
+if (!file.exists('data/final')) unzip(zip.fn, exdir='data')
+
+```
+
+```{r}
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+load.txts <- function(fn) {
+  readLines(fn, 10000) %>>%
+    removePunctuation %>>%
+    tolower %>>%
+    removeNumbers %>>%
+    removeWords(stopwords('english')) %>>%
+    stripWhitespace %>>%
+    trim
+}
+
+txts.tokenization <- function(txts) {
+  txts  %>>%
+    MC_tokenizer %>>%
+    (.[.!=""])
+}
+
+```
+
+```{r}
+
+txts <- load.txts('data/final/en_US/en_US.twitter.txt')
+tokens <- txts.tokenization(txts)
+
+
+
+head(tokens)
+
+
+N.total1 <- length(tokens)
+
+# Frequncies:
+tokens.tb <- sort(table(tokens), decreasing = TRUE)
+tokens.dt <- data.table(token=names(tokens.tb), counts=tokens.tb)
+## setkey(tokens.dt, -counts)
+
+ggplot(data=tokens.dt[order(-tokens.dt$counts)[1:20]]) +
+  geom_bar(aes(x=reorder(token, counts), y=counts), stat="identity") +
+  coord_flip() 
+
+## wordcloud(tokens, scale=c(5,0.5), max.words=300, random.order=FALSE,
+##          rot.per=0.35, use.r.layout=FALSE, colors=brewer.pal(8, "Dark2"))
+
+require('RWeka')
+
+grams2 <- NGramTokenizer(txts, Weka_control(min = 2, max = 2))
+grams2.tb <- sort(table(grams2), decreasing = TRUE)
+grams2.dt <- data.table(names(grams2.tb))
+
+length(grams2.tb)
+grams2.tb[1:20]
+
+
+## get("grams2")
+
+grams3 <- NGramTokenizer(txts, Weka_control(min = 3, max = 3))
+grams3.tb <- sort(table(grams3), decreasing = TRUE)
+grams3.tb[1:20]
+
+d <- 0.5
+
+word <- "love"
+word.re <- paste0("^",word," ")
+grams2.rel <- grams2[grep(word.re, grams2)]
+words.next <- gsub(word.re, "", grams2.rel)
+words.next.tb <- sort(table(words.next), decreasing = TRUE)
+words.next.tb[1:20]
+
+
+system.time({
+  word <- "love"
+  word.re <- paste0("^",word," ")
+  grams2.rel <- grams2[grep(word.re, grams2)]
+  words.next <- gsub(word.re, "", grams2.rel)
+  words.next.tb <- sort(table(words.next), decreasing = TRUE)
+  words.next.tb[1:20]
+})
+
+grams2.search <- function(word) {
+  
+}
+
+
+
+
+
+
+```
