@@ -1,3 +1,6 @@
+# Text Prediction
+
+
 ## Introduction
 
 ```{r libraries}
@@ -7,6 +10,7 @@ require('wordcloud')
 require("data.table")
 require('ggplot2')
 require('filehash')
+require('ngram')
 require('RWeka')
 ```
 
@@ -36,8 +40,8 @@ if (!file.exists('data/final')) unzip(zip.fn, exdir='data')
 
 ### Cleaning
 
-Now it is time for cleaning. Let us see what we have. We will read
-1000 tweets in English in order to see what we have, since reading
+Now it is time for cleaning. We will read
+10000 tweets in English in order to see what we have, since reading
 entire file takes about 3 minutes on my computer. Then we transform
 the vector into data.table, since the operations we will do later
 results to be faster.
@@ -48,40 +52,93 @@ read.datafile <- function(fn, n=-1L) {
   data.table(words=txts)
 }
 
-tus <- read.datafile('data/final/en_US/en_US.twitter.txt', 1000)
-tus0 <- read.datafile('data/final/en_US/en_US.twitter.txt')
-
+tus <- read.datafile('data/final/en_US/en_US.twitter.txt')
+tus.test <- read.datafile('data/final/en_US/en_US.twitter.txt', 10000)
 ```
 
-Next, we lower case of all letter, and then we deal with is punctuation. What we are
-going to to is to treat symbols `. , ? ... ; ! : () "` as the one that divide
-the message. We also include here a lonely `-`.
-
-Finally we remove extra empty spaces.
+Next, we lower case of all letter, and then we deal with is
+punctuation. What we are going to treat symbols `. , ? ... ; ! : () "`
+as the one that divide the message (another future strategy is to only
+remove them). We also include here a lonely `-`. Then we remove
+extra empty spaces and finally we tokenize them.
 
 ```{r}
+source('textPred.R')
 
-splitPunctuation <- function(txts) {
-  unlist(strsplit(txts, "\\.+|\\?+|!+|;+|,+"))
-}
+system.time({
+  tus.test.tokens <- basicDT(tus.test)
+})
 
-trim <- function (txts) gsub("^\\s+|\\s+$", "", txts)
-
-removeExtraSpace <- function(txts) {
-  gsub("\\s\\s+", " ", txts)
-}
-
-txts.clean <- function(txts) {
-  txts %>>%
-    tolower %>>%
-    splitPunctuation %>>%
-    removeExtraSpace %>>%
-    trim
+if (dbExists(dbCache, "tus.tokens")) {
+  tus.tokens <- dbFetch(dbCache, "tus.tokens")
+} else {
+  tus.tokens <- basicDT(tus)
+  dbInsert(dbCache, "tus.tokens", tus.tokens)
 }
 
 system.time({
-  tus2 <- tus0[,.(words=txts.clean(words))][words!=""]
+  tus1.freq <- tus.tokens[,.(N=.N),by=tokens1][order(-N)]
 })
+
+ggplot(tus1.freq[1:40]) +
+  geom_bar(aes(x=reorder(tokens1, N), y=N), stat="identity") +
+  xlab("tokens")+ylab('occurances')
+  coord_flip()
+```
+
+
+```{r}
+
+
+
+
+
+system.time({
+  tus.test <- read.datafile('data/final/en_US/en_US.twitter.txt', 100000)
+  tus2 <- tus.test[,.(words=txts.clean(words))][words!=""][,id:=.I]
+  tus3b <- tus2[,.(tokens1=txts.tokens(words)), by=id]
+
+})
+
+N <- dim(tus3b)[1]
+newtus3b <- tus3b
+
+
+
+tus4b <- cbind(tus3b[1:N-1] , tus3b[2:N])
+setnames(tus4b, c(colnames(tus3b), "id2", "tokens2"))
+class(tus4b)
+tus4b <- tus4b[get("id2")==id]
+tus4b <- tus4b[,!"id2", with=FALSE]
+
+
+setnames(tus4b, c("id1", "tokens1", "id2", "tokens2"))
+tus5b <- tus4b
+
+
+txts.ngrams <- function(txts, n=2) {
+  unlist(lapply(txts, function(txt) get.ngrams(ngram(txt, n))))
+}
+
+
+system.time({
+  ## tus30 <- tus20[,counts:=txts.count(words)]
+  
+  tus5 <- tus3[1:10000][counts>1,.(words=txts.ngrams(words, 2))]  
+})
+
+
+
+system.time({
+  tus3 <- tus2[,.(words=txts.ngrams(words, 1))]
+})
+
+
+
+BigramTokenizer <- function(x) {
+  unlist(lapply(ngrams(x, 2),
+                paste, collapse = " "), use.names =FALSE)
+}
 ```
 
 ```{r processingFunctions}
