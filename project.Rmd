@@ -1,17 +1,18 @@
 ## Introduction
 
-```{r}
+```{r libraries}
 require("tm")
 require("pipeR")
 require('wordcloud')
 require("data.table")
 require('ggplot2')
+require('filehash')
+require('RWeka')
 ```
 
 ### Cache
 
-```{r}
-require(filehash)
+```{r filecache}
 cache.fn <- "cache/dbCache"
 if (!file.exists('cache')) dir.create('cache')
 if (!file.exists(cache.fn)) dbCreate(cache.fn)
@@ -23,21 +24,77 @@ dbCache <- dbInit(cache.fn)
 
 ### Obtaining the data
 
-```{r}
+First we download and clean data with the following script.
 
+```{r downloadData}
 if (!file.exists('data')) dir.create('data')
 zip.url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
 zip.fn <- "data/Coursera-SwiftKey.zip"
 if (!file.exists(zip.fn)) download.file(zip.url, destfile=zip.fn, method="curl")
 if (!file.exists('data/final')) unzip(zip.fn, exdir='data')
+```
+
+### Cleaning
+
+Now it is time for cleaning. Let us see what we have. We will read
+1000 tweets in English in order to see what we have, since reading
+entire file takes about 3 minutes on my computer. Then we transform
+the vector into data.table, since the operations we will do later
+results to be faster.
+
+```{r}
+read.datafile <- function(fn, n=-1L) {
+  txts <- readLines(fn, n)
+  data.table(words=txts)
+}
+
+tus <- read.datafile('data/final/en_US/en_US.twitter.txt', 1000)
+tus0 <- read.datafile('data/final/en_US/en_US.twitter.txt')
 
 ```
 
-```{r}
-trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+Next, we lower case of all letter, and then we deal with is punctuation. What we are
+going to to is to treat symbols `. , ? ... ; ! : () "` as the one that divide
+the message. We also include here a lonely `-`.
 
-load.txts <- function(fn) {
-  readLines(fn) %>>%
+Finally we remove extra empty spaces.
+
+```{r}
+
+splitPunctuation <- function(txts) {
+  unlist(strsplit(txts, "\\.+|\\?+|!+|;+|,+"))
+}
+
+trim <- function (txts) gsub("^\\s+|\\s+$", "", txts)
+
+removeExtraSpace <- function(txts) {
+  gsub("\\s\\s+", " ", txts)
+}
+
+txts.clean <- function(txts) {
+  txts %>>%
+    tolower %>>%
+    splitPunctuation %>>%
+    removeExtraSpace %>>%
+    trim
+}
+
+system.time({
+  tus2 <- tus0[,.(words=txts.clean(words))][words!=""]
+})
+```
+
+```{r processingFunctions}
+
+
+
+
+removePunct <- function(txts) {
+  gsub("[[:punct:]]", "", txts)
+}
+
+process.txts <- function(txts) {
+  txts %>>%
     removePunctuation %>>%
     tolower %>>%
     removeNumbers %>>%
@@ -61,10 +118,47 @@ words.freq <- function(words) {
 
 ## Frequencies of tokens
 
-```{r}
-txts <- load.txts('data/final/en_US/en_US.twitter.txt')
+```{r load_files}
+
+## aprox 11 s
+
+system.time({
+  txts <- readLines('data/final/en_US/en_US.twitter.txt', 100000)
+})
+
+system.time({
+  process.txts(txts)
+})
+
+txts.dt <- data.table(words=txts)
+
+## 20 s
+system.time({
+  removePunctuation(txts)
+})
+
+system.time({
+  txts2.dt <- txts.dt[,.(removePunct(words)),]
+})
+
+txts2.dt
+class(txts2.dt)
+system.time({
+  txts3.dt <- txts.dt[,removePunctuation(words),]
+})
+
+
+txts.dt
+txts2.dt
+
+txts <- txts.process(txts)
+
+## aprx 2
 tokens <- txts.tokenization(txts)
-tokens.dt <- words.freq(tokens)
+system.time({
+  tokens.dt <- words.freq(tokens)
+})
+
 ```
 
 ```{r}
@@ -84,7 +178,6 @@ ggplot(data=tokens.dt[1:20]) +
 
 ```{r}
 
-require('RWeka')
 
 grams2 <- NGramTokenizer(txts, Weka_control(min = 2, max = 2))
 grams2.tb <- sort(table(grams2), decreasing = TRUE)
