@@ -1,3 +1,14 @@
+require("pipeR")
+require("data.table")
+
+require('filehash')
+
+cache.fn <- "cache/dbCache"
+if (!file.exists('cache')) dir.create('cache')
+if (!file.exists(cache.fn)) dbCreate(cache.fn)
+dbCache <- dbInit(cache.fn)
+
+
 treatPunctuation <- function(txts) {
   ## we split, but we can also remove only
   unlist(strsplit(txts, "(?!@|'|-|#)[[:punct:]]| -+ ", perl=TRUE))  
@@ -40,5 +51,27 @@ basicDT <- function(dt) {
   dt %>>%
     cleanDT %>>%
     tokenizeDT
+}
+
+### N grams
+
+ngramDTs <- function(dt, n) {
+  N <- dim(dt)[1]
+  ngrams.dts <- list()
+  ngrams.dts[[1]] <- dt
+  if (n>=2) {
+    for (k in 2:n) {
+      print(k)
+      ngrams.dts[[k]] <-  cbind(ngrams.dts[[k-1]][1:(N-k+1),!"newid", with=FALSE] , dt[k:N])
+      setnames(ngrams.dts[[k]], c(colnames(ngrams.dts[[k-1]][,!"newid", with=FALSE]),
+               "newid", paste0("tokens", k)))
+    }
+  }
+  if (n>=2) {
+    for (k in 2:n) {
+      ngrams.dts[[k]] <- ngrams.dts[[k]][id==newid][,!"newid", with=FALSE]
+    }
+  }
+  ngrams.dts
 }
 

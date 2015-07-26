@@ -1,26 +1,12 @@
 # Text Prediction
 
 
-## Introduction
-
 ```{r libraries}
-require("tm")
-require("pipeR")
-require('wordcloud')
-require("data.table")
+source('textPred.R')
+
 require('ggplot2')
-require('filehash')
-require('ngram')
-require('RWeka')
-```
-
-### Cache
-
-```{r filecache}
-cache.fn <- "cache/dbCache"
-if (!file.exists('cache')) dir.create('cache')
-if (!file.exists(cache.fn)) dbCreate(cache.fn)
-dbCache <- dbInit(cache.fn)
+require('gridExtra')
+require('wordcloud')
 ```
 
 ## Data acquisition and cleaning
@@ -40,51 +26,112 @@ if (!file.exists('data/final')) unzip(zip.fn, exdir='data')
 
 ### Cleaning
 
-Now it is time for cleaning. We will read
-10000 tweets in English in order to see what we have, since reading
-entire file takes about 3 minutes on my computer. Then we transform
-the vector into data.table, since the operations we will do later
-results to be faster.
+Now it is time for cleaning. We will read the file that contains
+tweets in English. Then we transform the vector into data.table, since
+the operations we will do later results to be faster. We will also
+cache the data.table file.
 
-```{r}
+```{r readData}
 read.datafile <- function(fn, n=-1L) {
   txts <- readLines(fn, n)
   data.table(words=txts)
 }
-
-tus <- read.datafile('data/final/en_US/en_US.twitter.txt')
-tus.test <- read.datafile('data/final/en_US/en_US.twitter.txt', 10000)
 ```
 
 Next, we lower case of all letter, and then we deal with is
 punctuation. What we are going to treat symbols `. , ? ... ; ! : () "`
 as the one that divide the message (another future strategy is to only
-remove them). We also include here a lonely `-`. Then we remove
-extra empty spaces and finally we tokenize them.
+remove them). We also include here a lonely `-`. Then we remove extra
+empty spaces and finally we tokenize them. Here we use function
+`basicDT` implemented in separated file.
+
+
+```{r tokenization}
+getTokens <- function(vn, fn, n=-1L) {
+  if (dbExists(dbCache, vn)) {
+    v <- dbFetch(dbCache, vn)
+  } else {
+    v <- read.datafile(fn, n) %>>%
+      basicDT()
+    dbInsert(dbCache, vn, v)
+  }
+  v
+}
+```
+
+```{r tus}
+tus.tokens <-
+  getTokens("tus.tokens", 
+            "data/final/en_US/en_US.twitter.txt", n=-1L)
+bus.tokens <-
+  getTokens("bus.tokens", 
+            "data/final/en_US/en_US.blogs.txt", n=-1L)
+nus.tokens <-
+  getTokens("nus.tokens", 
+            "data/final/en_US/en_US.news.txt", n=-1L)
+```
+
+## Exploratory analysis
+
+### Frequencies of tokens
+
+```{r freq}
+tokens.freq <- function(dt) {
+  dt[,.(counts=.N),by=tokens1][order(-counts)]
+}
+```
 
 ```{r}
-source('textPred.R')
-
-system.time({
-  tus.test.tokens <- basicDT(tus.test)
-})
-
-if (dbExists(dbCache, "tus.tokens")) {
-  tus.tokens <- dbFetch(dbCache, "tus.tokens")
-} else {
-  tus.tokens <- basicDT(tus)
-  dbInsert(dbCache, "tus.tokens", tus.tokens)
-}
-
-system.time({
-  tus1.freq <- tus.tokens[,.(N=.N),by=tokens1][order(-N)]
-})
-
-ggplot(tus1.freq[1:40]) +
-  geom_bar(aes(x=reorder(tokens1, N), y=N), stat="identity") +
-  xlab("tokens")+ylab('occurances')
-  coord_flip()
+tus.freq <- tokens.freq(tus.tokens)
+bus.freq <- tokens.freq(bus.tokens)
+nus.freq <- tokens.freq(nus.tokens)
 ```
+
+```{r}
+plotFreq <- function(dt) {
+  p <- ggplot(dt) +
+    geom_bar(aes(x=reorder(words, counts), y=counts), stat="identity") +
+    xlab("Words")+ylab('Frequencies') +
+    coord_flip()
+}
+```
+
+```{r, fig.cap="The most frequnts words in (from left) tweets, blogs, news"}
+pt <- plotFreq(tus.freq[1:40, .(words=tokens1, counts)])
+pb <- plotFreq(bus.freq[1:40, .(words=tokens1, counts)])
+pn <- plotFreq(nus.freq[1:40, .(words=tokens1, counts)])
+grid.arrange(pt, pb, pn, ncol=3)
+```
+
+```{r worldcloud, fig.cap="Most popular words in tweets"}
+
+wordcloud(tus.freq[1:500, tokens1], tus.freq[1:500, counts],
+          scale=c(5,0.5),
+          random.order=FALSE,
+          rot.per=0.35, use.r.layout=FALSE,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+### Ngrams
+
+```{r}
+
+tus.ngrams <- ngramDTs(tus.tokens, 3)
+
+## system.time({
+## if (dbExists(dbCache, "tus.ngrams")) {
+##   print('from db...')
+##   tus.ngrams <- dbFetch(dbCache, "tus.ngrams")
+## } else {
+##   tus.ngrams <- ngramDTs(tus.tokens, 5)
+##   dbInsert(dbCache, "tus.ngrams", tus.ngrams)
+## }
+## })
+
+#dbInsert(dbCache, "tus.ngrams5", tus.ngrams[[5]])
+
+```
+
 
 
 ```{r}
@@ -101,7 +148,7 @@ system.time({
 })
 
 N <- dim(tus3b)[1]
-newtus3b <- tus3b
+
 
 
 
