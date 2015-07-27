@@ -96,14 +96,18 @@ plotFreq <- function(dt) {
 }
 ```
 
-```{r, fig.cap="The most frequnts words in (from left) tweets, blogs, news"}
+#### The most frequnts words in (from left) tweets, blogs, news
+
+```{r}
 pt <- plotFreq(tus.freq[1:40, .(words=tokens1, counts)])
 pb <- plotFreq(bus.freq[1:40, .(words=tokens1, counts)])
 pn <- plotFreq(nus.freq[1:40, .(words=tokens1, counts)])
 grid.arrange(pt, pb, pn, ncol=3)
 ```
 
-```{r worldcloud, fig.cap="Most popular words in tweets"}
+### Most popular words in tweets
+
+```{r worldcloud}
 
 wordcloud(tus.freq[1:500, tokens1], tus.freq[1:500, counts],
           scale=c(5,0.5),
@@ -114,229 +118,49 @@ wordcloud(tus.freq[1:500, tokens1], tus.freq[1:500, counts],
 
 ### Ngrams
 
-```{r}
+Next we compute 2,3 and 4 grams using function implemented in
+separated file.
 
-tus.ngrams <- ngramDTs(tus.tokens, 3)
 
-## system.time({
-## if (dbExists(dbCache, "tus.ngrams")) {
-##   print('from db...')
-##   tus.ngrams <- dbFetch(dbCache, "tus.ngrams")
-## } else {
-##   tus.ngrams <- ngramDTs(tus.tokens, 5)
-##   dbInsert(dbCache, "tus.ngrams", tus.ngrams)
-## }
-## })
-
-#dbInsert(dbCache, "tus.ngrams5", tus.ngrams[[5]])
+```{r ngrams}
+tus.ngrams <- ngramDTs(tus.tokens, 4)
 
 ```
 
+Now let's check which are the most popular 2-grams, 3-grams and
+4-grams in tweets.
 
-
-```{r}
-
-
-
-
-
-system.time({
-  tus.test <- read.datafile('data/final/en_US/en_US.twitter.txt', 100000)
-  tus2 <- tus.test[,.(words=txts.clean(words))][words!=""][,id:=.I]
-  tus3b <- tus2[,.(tokens1=txts.tokens(words)), by=id]
-
-})
-
-N <- dim(tus3b)[1]
-
-
-
-
-tus4b <- cbind(tus3b[1:N-1] , tus3b[2:N])
-setnames(tus4b, c(colnames(tus3b), "id2", "tokens2"))
-class(tus4b)
-tus4b <- tus4b[get("id2")==id]
-tus4b <- tus4b[,!"id2", with=FALSE]
-
-
-setnames(tus4b, c("id1", "tokens1", "id2", "tokens2"))
-tus5b <- tus4b
-
-
-txts.ngrams <- function(txts, n=2) {
-  unlist(lapply(txts, function(txt) get.ngrams(ngram(txt, n))))
-}
-
-
-system.time({
-  ## tus30 <- tus20[,counts:=txts.count(words)]
-  
-  tus5 <- tus3[1:10000][counts>1,.(words=txts.ngrams(words, 2))]  
-})
-
-
-
-system.time({
-  tus3 <- tus2[,.(words=txts.ngrams(words, 1))]
-})
-
-
-
-BigramTokenizer <- function(x) {
-  unlist(lapply(ngrams(x, 2),
-                paste, collapse = " "), use.names =FALSE)
-}
-```
-
-```{r processingFunctions}
-
-
-
-
-removePunct <- function(txts) {
-  gsub("[[:punct:]]", "", txts)
-}
-
-process.txts <- function(txts) {
-  txts %>>%
-    removePunctuation %>>%
-    tolower %>>%
-    removeNumbers %>>%
-    removeWords(stopwords('english')) %>>%
-    stripWhitespace %>>%
-    trim
-}
-
-txts.tokenization <- function(txts) {
-  txts  %>>%
-    MC_tokenizer %>>%
-    (.[.!=""])
-}
-
-words.freq <- function(words) {
-  words.dt <- data.table(words=words)
-  words.dt[,.(counts=.N),by=words][order(-counts)]
-}
+```{r 2grams}
+tus.2 <- tus.ngrams[[2]][,.(counts=.N),by=.(tokens1, tokens2)][order(-counts),]
+tus.2.head <- tus.2[1:40,.(words=paste(tokens1, tokens2), counts)]
+p2 <- plotFreq(tus.2.head)
+p2
 
 ```
 
-## Frequencies of tokens
-
-```{r load_files}
-
-## aprox 11 s
-
-system.time({
-  txts <- readLines('data/final/en_US/en_US.twitter.txt', 100000)
-})
-
-system.time({
-  process.txts(txts)
-})
-
-txts.dt <- data.table(words=txts)
-
-## 20 s
-system.time({
-  removePunctuation(txts)
-})
-
-system.time({
-  txts2.dt <- txts.dt[,.(removePunct(words)),]
-})
-
-txts2.dt
-class(txts2.dt)
-system.time({
-  txts3.dt <- txts.dt[,removePunctuation(words),]
-})
-
-
-txts.dt
-txts2.dt
-
-txts <- txts.process(txts)
-
-## aprx 2
-tokens <- txts.tokenization(txts)
-system.time({
-  tokens.dt <- words.freq(tokens)
-})
+```{r 3grams}
+tus.3 <- tus.ngrams[[3]][,.(counts=.N),by=.(tokens1, tokens2, tokens3)][order(-counts),]
+tus.3.head <- tus.3[1:40,.(words=paste(tokens1, tokens2, tokens3), counts)]
+p3 <- plotFreq(tus.3.head)
+p3
 
 ```
 
-```{r}
-ggplot(data=tokens.dt[1:20]) +
-  geom_bar(aes(x=reorder(words, counts), y=counts), stat="identity") +
-  coord_flip() 
-```
-
-```{r}
-##wordcloud(tokens, scale=c(5,0.5),
-##          max.words=300, random.order=FALSE,
-##          rot.per=0.35, use.r.layout=FALSE,
-##          colors=brewer.pal(8, "Dark2"))
-```
-
-## Frequencies of 2-grams
-
-```{r}
-
-
-grams2 <- NGramTokenizer(txts, Weka_control(min = 2, max = 2))
-grams2.tb <- sort(table(grams2), decreasing = TRUE)
-grams2.dt <- words.freq(grams2)
-
-ggplot(grams2.dt[1:20]) +
-  geom_bar(aes(x=reorder(words, counts), y=counts), stat="identity") +
-  coord_flip()
+```{r 4grams}
+tus.4 <- tus.ngrams[[4]][,.(counts=.N),by=.(tokens1, tokens2, tokens3, tokens4)][order(-counts),]
+tus.4.head <- tus.4[1:40,.(words=paste(tokens1, tokens2, tokens3, tokens4), counts)]
+p4 <- plotFreq(tus.4.head)
+p4
 
 ```
 
-## Frequencies of 3-grams
+### Plans
 
+Once we have 2,3 and 4 grams calculated, we are planing to use Katz's
+back-off model together with Good-Turing estimation. This allows us to
+choose in a smooth way between predictions obtained from n-grams
+models with different n. We plan to use n up to 5.
 
-```{r}
-grams3 <- NGramTokenizer(txts, Weka_control(min = 3, max = 3))
-grams3.dt <- words.freq(grams3)
-ggplot(grams3.dt[1:20]) +
-  geom_bar(aes(x=reorder(words, counts), y=counts), stat="identity") +
-  coord_flip()
-```
+For faster prediction we use data.table package. We will also use
+filehash packages for storing computed frequency tables.
 
-## Frequencies of 4-grams
-
-
-```{r}
-grams4 <- NGramTokenizer(txts, Weka_control(min = 4, max = 4))
-grams4.dt <- words.freq(grams4)
-ggplot(grams4.dt[1:20]) +
-  geom_bar(aes(x=reorder(words, counts), y=counts), stat="identity") +
-  coord_flip()
-```
-
-
-
-
-```{r}
-
-## d <- 0.5
-
-## word <- "love"
-## word.re <- paste0("^",word," ")
-## grams2.rel <- grams2[grep(word.re, grams2)]
-##words.next <- gsub(word.re, "", grams2.rel)
-##words.next.tb <- sort(table(words.next), decreasing = TRUE)
-##words.next.tb[1:20]
-
-
-##system.time({
-##  word <- "love"
-##  word.re <- paste0("^",word," ")
-##  grams2.rel <- grams2[grep(word.re, grams2)]
-##  words.next <- gsub(word.re, "", grams2.rel)
-##  words.next.tb <- sort(table(words.next), decreasing = TRUE)
-##  words.next.tb[1:20]
-##})
-
-```
