@@ -1,0 +1,3 @@
+source('textPred.R')
+
+downloadCourseraSwiftKey()

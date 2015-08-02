@@ -1,7 +1,13 @@
 require("pipeR")
-require("data.table")
 
+
+require("data.table")
 require('filehash')
+
+require('ggplot2')
+require('gridExtra')
+require('wordcloud')
+
 
 cache.fn <- "cache/dbCache"
 if (!file.exists('cache')) dir.create('cache')

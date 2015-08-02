@@ -1,12 +1,8 @@
 # Text Prediction
 
 
-```{r libraries}
+```{r textPred}
 source('textPred.R')
-
-require('ggplot2')
-require('gridExtra')
-require('wordcloud')
 ```
 
 ## Data acquisition and cleaning
