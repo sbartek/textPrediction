@@ -10,9 +10,12 @@ require('wordcloud')
 
 
 cache.fn <- "cache/dbCache"
+cachePre.fn <- "cache/dbCachePre"
 if (!file.exists('cache')) dir.create('cache')
 if (!file.exists(cache.fn)) dbCreate(cache.fn)
+if (!file.exists(cachePre.fn)) dbCreate(cachePre.fn)
 dbCache <- dbInit(cache.fn)
+dbCachePre <- dbInit(cachePre.fn)
 
 
 downloadCourseraSwiftKey <- function() {
@@ -104,7 +107,7 @@ ngramDTs <- function(dt, n) {
 
 dbFetchOrInsert <- function(db, name, f) {
   if (dbExists(db, name)) {
-    return(dbFetch(dbCache, name))
+    return(dbFetch(db, name))
   } else {
     v <- f()
     dbInsert(db, name, v)
@@ -112,7 +115,7 @@ dbFetchOrInsert <- function(db, name, f) {
   }
 }
 
-newKGramsTable <- function(dt.acc, dt1, N, k) {
+newKGramsTable <- function(dt.acc, dt1, N, k, echo=FALSE) {
   
   ## k: kgrams to create
   ## dt.accc: k-1 grams
@@ -128,6 +131,7 @@ newKGramsTable <- function(dt.acc, dt1, N, k) {
   }
   setnames(dt.new,
            c(cnames.old, "newid", paste0("tokens", k)))
+  if (echo) print(object.size(dt.new))
   dt.new
 }
 
@@ -136,21 +140,36 @@ preNGrams.name <- function(name, k) {
   paste0(name, "Pre", k, "grams")
 }
 
-preNGramsFH <- function(name, n, dt=NULL, overwrite=FALSE) {
-  if (overwrite) {
-    vs <- dbList(dbCache)
-    vs <- vs[grep("^alaPre[0-9]+grams$", vs)]
-    for (v in vs) dbDelete(dbCache, v)
+dbDeletePattern <- function(db, pattern, echo=FALSE) {
+  vs <- dbList(db)
+  vs <- vs[grep(pattern, vs)]
+  if (echo) {
+    print("removing from db:")
+    print(vs)
   }
-  dt1 <- dbFetchOrInsert(dbCache, preNGrams.name(name, 1),
+  for (v in vs) dbDelete(db, v)
+}
+
+dbDeletePreRecords <- function(name, echo=FALSE) {
+  pattern <- paste0("^",name,"Pre[0-9]+grams$")
+  dbDeletePattern(dbCachePre, pattern, echo)
+}
+
+preNGramsFH <- function(name, n, dt=NULL, overwrite=FALSE, echo=FALSE) {
+  if (overwrite) {
+    dbDeletePreRecords(name, echo)
+  }
+  if (echo) print("pre 1-grams")
+  dt1 <- dbFetchOrInsert(dbCachePre, preNGrams.name(name, 1),
                          function() dt)
   N <- dim(dt1)[1]
   dt.acc <- dt1
   if (n>=2) {
     for (k in 2:n) {
+      if (echo) print(paste0("pre ",k,"-grams"))
       if (k>N) return()
-      dt.acc <- dbFetchOrInsert(dbCache, preNGrams.name(name, k),
-                                function() newKGramsTable(dt.acc, dt1, N, k))
+      dt.acc <- dbFetchOrInsert(dbCachePre, preNGrams.name(name, k),
+                                function() newKGramsTable(dt.acc, dt1, N, k, echo))
     }
   }
   dt.acc
@@ -161,30 +180,77 @@ nGrams.name <- function(name, k) {
   paste0(name, k, "grams")
 }
 
-nGramsFH <- function(name, n, dt=NULL, overwrite=FALSE) {
-  preNGramsFH(name, n, dt, overwrite)
+dbDeleteRecords <- function(name, echo=FALSE) {
+  pattern <- paste0("^",name,"[0-9]+grams$")
+  dbDeletePattern(dbCache, pattern, echo) 
+}
+
+ktokens <- function(k) sapply(1:k, function(x) paste0("tokens",x))
+
+nGramsFH <- function(name, n, dt=NULL, overwrite=FALSE, echo=FALSE) {
   if (overwrite) {
-    vs <- dbList(dbCache)
-    vs <- vs[grep("^ala[0-9]+grams$", vs)]
-    for (v in vs) dbDelete(dbCache, v)
+    dbDeleteRecords(name, echo)
   }
   if (dbExists(dbCache, nGrams.name(name, n))) {
+    if (echo) print(paste("getting", n, "-grams from cache" ))
     return(dbFetch(dbCache, nGrams.name(name, n)))
   }
+  preNGramsFH(name, n, dt, overwrite, echo)
+  if (echo) print("1-grams")
   dt.counts <- dbFetchOrInsert(
     dbCache, nGrams.name(name, 1),
-    function() dbFetch(dbCache, preNGrams.name(name, 1))[,.(counts=.N),by=tokens1])
+    function() dbFetch(dbCachePre, preNGrams.name(name, 1))[,.(counts=.N),by=tokens1])
   if (n>=2) {
     for (k in 2:n) {
-      ktokens <- sapply(1:k, function(x) paste0("tokens",x))
+      if (echo) print(paste0(k,"grams"))
+      tokens.k <- ktokens(k)
       dt.counts <- dbFetchOrInsert(
         dbCache,
         nGrams.name(name, k),
-        function() dbFetch(dbCache,
-                           preNGrams.name(name, k))[id==newid,
-                                                    .(counts=.N),
-                                                    by=ktokens])
+        function() {
+          predt <- dbFetch(dbCachePre, preNGrams.name(name, k))
+          predt[id==newid, .(counts=.N), by=tokens.k]
+        })
     }
   }
   dt.counts
+}
+
+createEmptyTotalDT <- function(k) {
+  et.dt <- data.table(matrix(1:(k+1), nrow=1))
+  setnames(et.dt, c(ktokens(k),'counts'))
+  et.dt[0]
+}
+
+createEmptyTotalFH <- function(name, n) {
+  for (k in 1:n) {
+    dbInsert(dbCache, nGramsTotal.name(name, k), createEmptyTotalDT(k))
+  }
+}
+
+nGramsTotal.name <- function(name, k) {
+  paste0(name, "Total", k, "grams")
+}
+
+nGramsPart.name <- function(name, k, j) {
+  paste0(name, j, "h", k, "grams")
+}
+
+
+
+addNGramsFH <- function(name, nameTotal, n, dt, echo=FALSE) {
+  if (!dbExists(dbCache, nGramsTotal.name(nameTotal, 1))) {
+      createEmptyTotalFH(nameTotal, n)
+  }
+  Ntot <- dim(dt)[1]
+  id1 <- dt[floor(Ntot/3), id]
+  id2 <- dt[floor(2*Ntot/3), id]
+  j <- 1
+  nGramsFH(paste0(name, j, 'h'), n, dt[id<=id1], TRUE)
+  for (k in 1:n) {
+    dt.total <- dbFetch(dbCache, nGramsTotal.name(nameTotal, k))
+    dt.part <- dbFetch(dbCache, nGramsPart.name(name, k, j ))
+    dt.total <- rbind(dt.total, dt.part)
+    dbInsert(dbCache, nGramsTotal.name(nameTotal, k), dt.total)
+  }
 }

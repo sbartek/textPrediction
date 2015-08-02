@@ -34,42 +34,42 @@ describe('preNGramsFH', {
   dt <- data.table(words=c("Ala ma kota.", "Kot ma Alę.")) %>>%
     basicDT 
   name <- "ala"
-  test_that("1grams", {
-    dbDelete(dbCache, "alaPre1grams")
+  test_that("pre1-grams", {
+    dbDelete(dbCachePre, "alaPre1grams")
     preNGramsFH(name, 1, dt)
-    expect_that(dbExists(dbCache, "alaPre1grams"), is_true())
-    expect_that(dbFetch(dbCache, "alaPre1grams"), equals(dt))
+    expect_that(dbExists(dbCachePre, "alaPre1grams"), is_true())
+    expect_that(dbFetch(dbCachePre, "alaPre1grams"), equals(dt))
   })
 
   test_that("pre2grams", {
-    dbDelete(dbCache, "alaPre2grams")
+    dbDelete(dbCachePre, "alaPre2grams")
     preNGramsFH(name, 2, dt)
-    expect_that(dbExists(dbCache, "alaPre2grams"), is_true())
-    pre2 <- dbFetch(dbCache, "alaPre2grams")
+    expect_that(dbExists(dbCachePre, "alaPre2grams"), is_true())
+    pre2 <- dbFetch(dbCachePre, "alaPre2grams")
     expect_that(dim(pre2), equals(c(5,4)))
   })
 
   test_that("pre3grams", {
-    dbDelete(dbCache, "alaPre3grams")
+    dbDelete(dbCachePre, "alaPre3grams")
     preNGramsFH(name, 3, dt)
-    expect_that(dbExists(dbCache, "alaPre3grams"), is_true())
-    pre3 <- dbFetch(dbCache, "alaPre3grams")
+    expect_that(dbExists(dbCachePre, "alaPre3grams"), is_true())
+    pre3 <- dbFetch(dbCachePre, "alaPre3grams")
     expect_that(dim(pre3), equals(c(4,5)))
   })
 
 
   test_that("pre6grams", {
-    dbDelete(dbCache, "alaPre6grams")
+    dbDelete(dbCachePre, "alaPre6grams")
     preNGramsFH(name, 6, dt)
-    expect_that(dbExists(dbCache, "alaPre6grams"), is_true())
-    pre6 <- dbFetch(dbCache, "alaPre6grams")
+    expect_that(dbExists(dbCachePre, "alaPre6grams"), is_true())
+    pre6 <- dbFetch(dbCachePre, "alaPre6grams")
     expect_that(dim(pre6), equals(c(1,8)))
   })
 
   test_that("pre7grams", {
-    dbDelete(dbCache, "alaPre7grams")
+    dbDelete(dbCachePre, "alaPre7grams")
     preNGramsFH(name, 7, dt)
-    expect_that(dbExists(dbCache, "alaPre7grams"), is_false())
+    expect_that(dbExists(dbCachePre, "alaPre7grams"), is_false())
   })  
 })
 
@@ -80,29 +80,75 @@ describe('nGramsFH', {
             "Ala ma psa.")) %>>%
     basicDT 
   name <- "ala"
-  test_that('1grams', {
+  test_that('1-grams', {
     nGramsFH(name, 1, dt, TRUE)
     a1 <- dbFetch(dbCache, "ala1grams")
     expect_that(a1[tokens1=='ma', counts], equals(3))
   })
 
-  test_that('2grams', {
+  test_that('2-grams', {
     nGramsFH(name, 2, dt, TRUE)
     a2 <- dbFetch(dbCache, "ala2grams")
     expect_that(a2[tokens1=='ala' & tokens2=='ma', counts], equals(2))
   })
 
-  test_that('3grams', {
+  test_that('3-grams', {
     nGramsFH(name, 3, dt, TRUE)
     a3 <- dbFetch(dbCache, "ala3grams")
     expect_that(a3[tokens1=='ala' & tokens2=='ma' & tokens3=='kota',
                    counts],
                 equals(1))
   })
-  test_that('4grams', {
+  test_that('4-grams', {
     nGramsFH(name, 4, dt, TRUE)
     a4 <- dbFetch(dbCache, "ala4grams")
     expect_that(dim(a4)[1], equals(0))
   })
 })
 
+describe("createEmptyTotal", {
+  expect_that(dim(createEmptyTotalDT(2)), equals(c(0,3)))
+})
+
+describe("createEmptyTotalFH", {
+  createEmptyTotalFH("koty", 4)
+  expect_that(dim(dbFetch(dbCache, "kotyTotal4grams")), equals(c(0,5)))
+})
+
+
+describe("dbDeletePattern", {
+  vs <- c("xyz1", "xyz2")
+  for (v in vs) {
+    dbInsert(dbCache, v, v)
+  }
+  pattern <- "xyz[0-9]+"
+  vs <- dbList(dbCache)
+  expect_that(length(vs[grep(pattern, vs)]), equals(2))
+  dbDeletePattern(dbCache, pattern)
+  vs <- dbList(dbCache)
+  expect_that(length(vs[grep(pattern, vs)]), equals(0))
+  
+})
+
+describe("createNGramsFH", {
+  dt <- data.table(
+    words=c("Ala ma kota.",
+            "Kot ma Alę.",
+            "Ala ma psa.",
+            "Ile kosztuje?",
+            "Ile kosztuje kot?",
+            "Kot czy pies, zależy ile kosztuje."
+            )) %>>%
+    basicDT 
+  name <- "ala"
+  pattern <- paste0("^kot1h[0-9]+grams$")
+  dbDeletePattern(dbCache, pattern, TRUE) 
+  ndt <- addNGramsFH("kot", "animals", 1, dt)
+  print('aaa')
+  print(dt)
+  print(ndt)
+  ## createNGramsFH
+  ## a1 <- data.table(a=c(1,2), b=c(1,2))
+  ## a2 <- data.table(a=c(1,3), b=c(2,3))
+  ## print(rbind(a1, a2)[,sum(b), by=a])
+})

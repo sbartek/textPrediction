@@ -27,12 +27,6 @@ tweets in English. Then we transform the vector into data.table, since
 the operations we will do later results to be faster. We will also
 cache the data.table file.
 
-```{r readData}
-read.datafile <- function(fn, n=-1L) {
-  txts <- readLines(fn, n)
-  data.table(words=txts)
-}
-```
 
 Next, we lower case of all letter, and then we deal with is
 punctuation. What we are going to treat symbols `. , ? ... ; ! : () "`
@@ -42,26 +36,21 @@ empty spaces and finally we tokenize them. Here we use function
 `basicDT` implemented in separated file.
 
 
-```{r tokenization}
-getTokens <- function(vn, fn, n=-1L) {
-  if (dbExists(dbCache, vn)) {
-    v <- dbFetch(dbCache, vn)
-  } else {
-    v <- read.datafile(fn, n) %>>%
-      basicDT()
-    dbInsert(dbCache, vn, v)
-  }
-  v
-}
-```
 
 ```{r tus}
 tus.tokens <-
   getTokens("tus.tokens", 
             "data/final/en_US/en_US.twitter.txt", n=-1L)
+```
+
+```{r bus}
+
 bus.tokens <-
   getTokens("bus.tokens", 
             "data/final/en_US/en_US.blogs.txt", n=-1L)
+```
+
+```{r nus}
 nus.tokens <-
   getTokens("nus.tokens", 
             "data/final/en_US/en_US.news.txt", n=-1L)
