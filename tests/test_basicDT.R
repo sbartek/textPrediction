@@ -1,6 +1,4 @@
-source('textPred.R')
-
-require('testthat')
+source('helper.R')
 
 
 describe('treatPunctuation', {
@@ -128,7 +126,7 @@ describe("dbDeletePattern", {
   
 })
 
-describe("createNGramsFH", {
+describe("addNGramsFH", {
   dt <- data.table(
     words=c("Ala ma kota.",
             "Kot ma Alę.",

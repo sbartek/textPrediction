@@ -1,6 +1,5 @@
 require("pipeR")
 
-
 require("data.table")
 require('filehash')
 
@@ -9,14 +8,16 @@ require('gridExtra')
 require('wordcloud')
 
 
-cache.fn <- "cache/dbCache"
-cachePre.fn <- "cache/dbCachePre"
+filehashOption(defaultType="RDS")
+cache.dir <- "cache/dbCache"
+cachePre.dir <- "cache/dbCachePre"
 if (!file.exists('cache')) dir.create('cache')
-if (!file.exists(cache.fn)) dbCreate(cache.fn)
-if (!file.exists(cachePre.fn)) dbCreate(cachePre.fn)
-dbCache <- dbInit(cache.fn)
-dbCachePre <- dbInit(cachePre.fn)
-
+if (!file.exists(cache.dir)) dir.create(cache.dir)
+if (!file.exists(cachePre.dir)) dir.create(cachePre.dir)
+#if (!file.exists(cache.fn)) dbCreate(cache.fn)
+#if (!file.exists(cachePre.fn)) dbCreate(cachePre.fn)
+dbCache <- dbInit(cache.dir)
+dbCachePre <- dbInit(cachePre.dir)
 
 downloadCourseraSwiftKey <- function() {
   if (!file.exists('data')) dir.create('data')
@@ -30,7 +31,6 @@ read.datafile <- function(fn, n=-1L) {
   txts <- readLines(fn, n)
   data.table(words=txts)
 }
-
 
 treatPunctuation <- function(txts) {
   ## we split, but we can also remove only
@@ -260,15 +260,20 @@ addNGramsFH <- function(name, nameTotal, n, dt, K=3, echo=FALSE) {
   }
   idj[K+1] <- dt[Ntot, id]
   for (j in 1:K) {
-    if (echo) paste('Part', j)
+    if (echo) print(paste('Part', j))
     nGramsFH(paste0(name, j, 'h'), n, dt[id>idj[j] & id<=idj[j+1]], TRUE, echo)
     for (k in 1:n) {
       tokens.k <- ktokens(k)
       dt.total <- dbFetch(dbCache, nGramsTotal.name(nameTotal, k))
       dt.part <- dbFetch(dbCache, nGramsPart.name(name, k, j ))
       dt.total <- rbind(dt.total, dt.part)[,.(counts=sum(counts)),by=tokens.k]
+      if (echo) {
+        print(paste('Upadating ', nGramsTotal.name(nameTotal, k)))
+        print(object.size(dt.total))
+      }
+      dbDelete(dbCache, nGramsTotal.name(nameTotal, k))
       dbInsert(dbCache, nGramsTotal.name(nameTotal, k), dt.total)
     }
+    dbDeletePartRecords(name, echo)
   }
-  dbDeletePartRecords(name, echo)
 }
