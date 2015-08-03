@@ -159,14 +159,14 @@ preNGramsFH <- function(name, n, dt=NULL, overwrite=FALSE, echo=FALSE) {
   if (overwrite) {
     dbDeletePreRecords(name, echo)
   }
-  if (echo) print("pre 1-grams")
+  if (echo) print(paste('creating', preNGrams.name(name, 1)))
   dt1 <- dbFetchOrInsert(dbCachePre, preNGrams.name(name, 1),
                          function() dt)
   N <- dim(dt1)[1]
   dt.acc <- dt1
   if (n>=2) {
     for (k in 2:n) {
-      if (echo) print(paste0("pre ",k,"-grams"))
+      if (echo) print(paste('creating', preNGrams.name(name, k)))
       if (k>N) return()
       dt.acc <- dbFetchOrInsert(dbCachePre, preNGrams.name(name, k),
                                 function() newKGramsTable(dt.acc, dt1, N, k, echo))
@@ -202,7 +202,7 @@ nGramsFH <- function(name, n, dt=NULL, overwrite=FALSE, echo=FALSE) {
     function() dbFetch(dbCachePre, preNGrams.name(name, 1))[,.(counts=.N),by=tokens1])
   if (n>=2) {
     for (k in 2:n) {
-      if (echo) print(paste0(k,"grams"))
+      if (echo) print(paste0(k,"-grams"))
       tokens.k <- ktokens(k)
       dt.counts <- dbFetchOrInsert(
         dbCache,
@@ -236,21 +236,39 @@ nGramsPart.name <- function(name, k, j) {
   paste0(name, j, "h", k, "grams")
 }
 
+dbDeletePartRecords <- function(name, echo=FALSE) {
+  pattern <- paste0("^", name, "[0-9]+h[0-9]+grams$")
+  dbDeletePattern(dbCache, pattern, echo)
+  pattern <- paste0("^", name, "[0-9]+hPre[0-9]+grams$")
+  dbDeletePattern(dbCachePre, pattern, echo) 
 
+}
 
-addNGramsFH <- function(name, nameTotal, n, dt, echo=FALSE) {
+dbDeleteTotalRecords <- function(name, echo=FALSE) {
+  pattern <- paste0("^", name, "Total[0-9]+grams$")
+  dbDeletePattern(dbCache, pattern, echo) 
+}
+
+addNGramsFH <- function(name, nameTotal, n, dt, K=3, echo=FALSE) {
   if (!dbExists(dbCache, nGramsTotal.name(nameTotal, 1))) {
       createEmptyTotalFH(nameTotal, n)
   }
+  idj <- 0
   Ntot <- dim(dt)[1]
-  id1 <- dt[floor(Ntot/3), id]
-  id2 <- dt[floor(2*Ntot/3), id]
-  j <- 1
-  nGramsFH(paste0(name, j, 'h'), n, dt[id<=id1], TRUE)
-  for (k in 1:n) {
-    dt.total <- dbFetch(dbCache, nGramsTotal.name(nameTotal, k))
-    dt.part <- dbFetch(dbCache, nGramsPart.name(name, k, j ))
-    dt.total <- rbind(dt.total, dt.part)
-    dbInsert(dbCache, nGramsTotal.name(nameTotal, k), dt.total)
+  for (j in 1:(K-1)) {
+    idj[j+1] <- dt[floor(j*Ntot/K), id]
   }
+  idj[K+1] <- dt[Ntot, id]
+  for (j in 1:K) {
+    if (echo) paste('Part', j)
+    nGramsFH(paste0(name, j, 'h'), n, dt[id>idj[j] & id<=idj[j+1]], TRUE, echo)
+    for (k in 1:n) {
+      tokens.k <- ktokens(k)
+      dt.total <- dbFetch(dbCache, nGramsTotal.name(nameTotal, k))
+      dt.part <- dbFetch(dbCache, nGramsPart.name(name, k, j ))
+      dt.total <- rbind(dt.total, dt.part)[,.(counts=sum(counts)),by=tokens.k]
+      dbInsert(dbCache, nGramsTotal.name(nameTotal, k), dt.total)
+    }
+  }
+  dbDeletePartRecords(name, echo)
 }

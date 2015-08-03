@@ -1,8 +1,6 @@
-## This to be transfor into real tests
 source('textPred.R')
 
 require('testthat')
-
 
 
 describe('treatPunctuation', {
@@ -135,20 +133,16 @@ describe("createNGramsFH", {
     words=c("Ala ma kota.",
             "Kot ma Alę.",
             "Ala ma psa.",
+            "Ala ma kota i psa.",
             "Ile kosztuje?",
             "Ile kosztuje kot?",
             "Kot czy pies, zależy ile kosztuje."
             )) %>>%
     basicDT 
-  name <- "ala"
-  pattern <- paste0("^kot1h[0-9]+grams$")
-  dbDeletePattern(dbCache, pattern, TRUE) 
-  ndt <- addNGramsFH("kot", "animals", 1, dt)
-  print('aaa')
-  print(dt)
-  print(ndt)
-  ## createNGramsFH
-  ## a1 <- data.table(a=c(1,2), b=c(1,2))
-  ## a2 <- data.table(a=c(1,3), b=c(2,3))
-  ## print(rbind(a1, a2)[,sum(b), by=a])
+  name <- "kot"
+  nameTotal <- "animals"
+  dbDeletePartRecords(name)
+  dbDeleteTotalRecords(nameTotal)
+  addNGramsFH(name, nameTotal, 4, dt, 3)
+  print(dbFetch(dbCache, 'animalsTotal4grams'))
 })
