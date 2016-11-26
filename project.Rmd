@@ -3,6 +3,8 @@
 
 ```{r textPred}
 source('textPred.R')
+LINE2READ <- 1000 # uses readLines, negative values likes -1L indicate reading everything
+## LINE2READ <- -1L
 ```
 
 ## Data acquisition and cleaning
@@ -13,11 +15,7 @@ source('textPred.R')
 First we download and clean data with the following script.
 
 ```{r downloadData}
-if (!file.exists('data')) dir.create('data')
-zip.url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
-zip.fn <- "data/Coursera-SwiftKey.zip"
-if (!file.exists(zip.fn)) download.file(zip.url, destfile=zip.fn, method="curl")
-if (!file.exists('data/final')) unzip(zip.fn, exdir='data')
+downloadCourseraSwiftKey()
 ```
 
 ### Cleaning
@@ -40,20 +38,20 @@ empty spaces and finally we tokenize them. Here we use function
 ```{r tus}
 tus.tokens <-
   getTokens("tus.tokens", 
-            "data/final/en_US/en_US.twitter.txt", n=-1L)
+            "data/final/en_US/en_US.twitter.txt", n=LINE2READ)
 ```
 
 ```{r bus}
 
 bus.tokens <-
   getTokens("bus.tokens", 
-            "data/final/en_US/en_US.blogs.txt", n=-1L)
+            "data/final/en_US/en_US.blogs.txt", n=LINE2READ)
 ```
 
 ```{r nus}
 nus.tokens <-
   getTokens("nus.tokens", 
-            "data/final/en_US/en_US.news.txt", n=-1L)
+            "data/final/en_US/en_US.news.txt", n=LINE2READ)
 ```
 
 ## Exploratory analysis

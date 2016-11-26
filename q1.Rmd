@@ -1,0 +1,77 @@
+```{r textPred}
+source('textPred.R')
+LINE2READ <- -1L # uses readLines, negative values likes -1L indicate reading everything 
+```
+
+```{r downloadData}
+downloadCourseraSwiftKey()
+```
+
+## 1. The en_US.blogs.txt  file is how many megabytes.
+
+
+
+```{r}
+file.info("data/final/en_US/en_US.blogs.txt")$size/(2^20)
+```
+
+## 2. The en_US.twitter.txt has how many lines of text?
+
+```{r}
+twitter_lines <- readLines("data/final/en_US/en_US.twitter.txt")
+twitter_length <- length(twitter_lines)
+scales::comma(twitter_length)
+```
+
+## 3. What is the length of the longest line seen in any of the three en_US data sets?
+
+
+```{r}
+
+find_max <- function(dataset) {
+  len <- length(dataset)
+  max_line <- 1
+  max_value <- 0
+  for (line in 1:len) {
+    n <- nchar(dataset[line])
+    if (max_value < n) {
+      max_value <- n
+      max_line <- line
+    }
+  }
+  cat(sprintf("ds info: line number: %d has %d symbols\n",
+        max_line,
+        max_value))
+
+  list(value=max_value, line_nr=max_line)
+}
+
+blogs_lines <- readLines("data/final/en_US/en_US.blogs.txt")
+news_lines <- readLines("data/final/en_US/en_US.news.txt")
+
+a <- find_max(twitter_lines)
+b <- find_max(blogs_lines)
+c <- find_max(news_lines)
+
+
+  
+```
+
+
+## 4. In the en_US twitter data set, if you divide the number of lines where the word "love" (all lowercase) occurs by the number of lines the word "hate" (all lowercase) occurs, about what do you get?
+
+```{r}
+length(grep("love", twitter_lines))/length(grep("hate", twitter_lines))
+```
+
+## 5. The one tweet in the en_US twitter data set that matches the word "biostats" says what?
+
+```{r}
+twitter_lines[grep("biostats", twitter_lines)]
+```
+
+## 6. How many tweets have the exact characters "A computer once beat me at chess, but it was no match for me at kickboxing". (I.e. the line matches those characters exactly.)
+
+```{r}
+twitter_lines[grep("A computer once beat me at chess, but it was no match for me at kickboxing", twitter_lines)]
+```

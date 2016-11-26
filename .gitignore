@@ -1,6 +1,7 @@
 data/*
 cache/*
 
+project_files/**
 .Rhistory
 
 .\#*

@@ -1,12 +1,15 @@
-require("pipeR")
+library("magrittr")
 
-require("data.table")
-require('filehash')
+library("data.table")
+library('filehash')
 
-require('ggplot2')
-require('gridExtra')
-require('wordcloud')
+library('ggplot2')
+library('gridExtra')
+library('wordcloud')
 
+
+LINE2READ <- 10000 # uses readLines, negative values likes -1L indicate reading everything 
+BLOCKSIZE <- 1000
 
 filehashOption(defaultType="RDS")
 cache.dir <- "cache/dbCache"
@@ -14,8 +17,6 @@ cachePre.dir <- "cache/dbCachePre"
 if (!file.exists('cache')) dir.create('cache')
 if (!file.exists(cache.dir)) dir.create(cache.dir)
 if (!file.exists(cachePre.dir)) dir.create(cachePre.dir)
-#if (!file.exists(cache.fn)) dbCreate(cache.fn)
-#if (!file.exists(cachePre.fn)) dbCreate(cachePre.fn)
 dbCache <- dbInit(cache.dir)
 dbCachePre <- dbInit(cachePre.dir)
 
@@ -27,7 +28,38 @@ downloadCourseraSwiftKey <- function() {
   if (!file.exists('data/final')) unzip(zip.fn, exdir='data')
 }
 
-read.datafile <- function(fn, n=-1L) {
+getTokens <- function(vn, fn, n=LINE2READ) {
+  if (dbExists(dbCache, vn)) {
+    v <- dbFetch(dbCache, vn)
+  } else {
+    v <- read.datafile(fn, n) %>%
+      basicDT()
+    dbInsert(dbCache, vn, v)
+  }
+  v
+}
+
+basicDT <- function(dt) {
+  ## dt: data.table with column words: characters
+  dt %>%
+    cleanDT #%>>%
+    #tokenizeDT
+}
+
+cleanDT <- function(dt) {
+  dt[,.(words=txts.clean(words))][words!=""][,id:=.I]
+}
+
+txts.clean <- function(txts) {
+  txts %>%
+    tolower %>%
+    treatPunctuation %>%
+    removeExtraSpace %>%
+    trim
+}
+
+
+read.datafile <- function(fn, n=LINE2READ) {
   txts <- readLines(fn, n)
   data.table(words=txts)
 }
@@ -43,13 +75,6 @@ removeExtraSpace <- function(txts) {
   gsub("\\s\\s+", " ", txts)
 }
 
-txts.clean <- function(txts) {
-  txts %>>%
-    tolower %>>%
-    treatPunctuation %>>%
-    removeExtraSpace %>>%
-    trim
-}
 
 txt.tokens <- function(txt) unlist(strsplit(txt, ' '))
 
@@ -58,31 +83,12 @@ txts.tokens <- function(txts) {
     txt.tokens
 }
 
-cleanDT <- function(dt) {
-  dt[,.(words=txts.clean(words))][words!=""][,id:=.I]
-}
 
 tokenizeDT <- function(dt) {
   dt[,.(tokens1=txts.tokens(words)), by=id]
 }
 
-basicDT <- function(dt) {
-  ## dt: data.table with column words: characters
-  dt %>>%
-    cleanDT %>>%
-    tokenizeDT
-}
 
-getTokens <- function(vn, fn, n=-1L) {
-  if (dbExists(dbCache, vn)) {
-    v <- dbFetch(dbCache, vn)
-  } else {
-    v <- read.datafile(fn, n) %>>%
-      basicDT()
-    dbInsert(dbCache, vn, v)
-  }
-  v
-}
 
 ### N grams
 
