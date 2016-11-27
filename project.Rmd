@@ -1,124 +1,96 @@
 # Text Prediction
 
+## Introduction
+
+This is an exploratory analysis for first milestone of Data Science
+Capstone Project. If you are interesting in the full code see the last
+section of this document.
 
 ```{r textPred}
 source('textPred.R')
-LINE2READ <- 1000 # uses readLines, negative values likes -1L indicate reading everything
-## LINE2READ <- -1L
 ```
 
-## Data acquisition and cleaning
+## Three data sets
 
+We have three data sets. All of them are in English (except few
+words). The first on contains tweets, the second one blog's notes and
+the last one news. The final goal is to use those data sets to write
+an application that, given few words, can predict next one(s). However
+this document contains a basic exploratory analysis of the data.
 
-### Obtaining the data
+### Tweets Data
 
-First we download and clean data with the following script.
-
-```{r downloadData}
-downloadCourseraSwiftKey()
-```
-
-### Cleaning
-
-Now it is time for cleaning. We will read the file that contains
-tweets in English. Then we transform the vector into data.table, since
-the operations we will do later results to be faster. We will also
-cache the data.table file.
-
-
-Next, we lower case of all letter, and then we deal with is
-punctuation. What we are going to treat symbols `. , ? ... ; ! : () "`
-as the one that divide the message (another future strategy is to only
-remove them). We also include here a lonely `-`. Then we remove extra
-empty spaces and finally we tokenize them. Here we use function
-`basicDT` implemented in separated file.
-
-
-
-```{r tus}
-tus.tokens <-
-  getTokens("tus.tokens", 
-            "data/final/en_US/en_US.twitter.txt", n=LINE2READ)
-```
-
-```{r bus}
-
-bus.tokens <-
-  getTokens("bus.tokens", 
-            "data/final/en_US/en_US.blogs.txt", n=LINE2READ)
-```
-
-```{r nus}
-nus.tokens <-
-  getTokens("nus.tokens", 
-            "data/final/en_US/en_US.news.txt", n=LINE2READ)
-```
-
-## Exploratory analysis
-
-### Frequencies of tokens
-
-```{r freq}
-tokens.freq <- function(dt) {
-  dt[,.(counts=.N),by=tokens1][order(-counts)]
-}
-```
+File `en_US.blogs.txt` has the following number of lines:
 
 ```{r}
-tus.freq <- tokens.freq(tus.tokens)
-bus.freq <- tokens.freq(bus.tokens)
-nus.freq <- tokens.freq(nus.tokens)
+fn <- 'data/final/en_US/en_US.twitter.txt'
+system(paste("wc -l", fn))
 ```
 
+The total number of words is:
 ```{r}
-plotFreq <- function(dt) {
-  p <- ggplot(dt) +
-    geom_bar(aes(x=reorder(words, counts), y=counts), stat="identity") +
-    xlab("Words")+ylab('Frequencies') +
-    coord_flip()
-}
+dt <- getTokensCsv("tus.tokens")
+dim(dt)[1]
 ```
 
-#### The most frequnts words in (from left) tweets, blogs, news
-
+The number of unique words is:
 ```{r}
-pt <- plotFreq(tus.freq[1:40, .(words=tokens1, counts)])
-pb <- plotFreq(bus.freq[1:40, .(words=tokens1, counts)])
-pn <- plotFreq(nus.freq[1:40, .(words=tokens1, counts)])
-grid.arrange(pt, pb, pn, ncol=3)
+dtSummary <- tokens.freq(dt)
+rm(dt)
+dim(dtSummary)[1]
 ```
 
-### Most popular words in tweets
+The most popular words:
 
 ```{r worldcloud}
-
-wordcloud(tus.freq[1:500, tokens1], tus.freq[1:500, counts],
+wordcloud(dtSummary[1:500, tokens1], dtSummary[1:500, counts],
           scale=c(5,0.5),
           random.order=FALSE,
           rot.per=0.35, use.r.layout=FALSE,
           colors=brewer.pal(8, "Dark2"))
 ```
 
+```{r}
+plotFreq(dtSummary[1:40, .(words=tokens1, freq)])
+```
+
+The following number of words cover 50% of words instances in the data
+set:
+```{r}
+dtSummary[, cumulativeFreq:=cumsum(counts)/sum(counts)]
+dtSummary[cumulativeFreq<0.5] %>%
+  dim[1]
+```
+
+The following number of words cover 50% of words instances in the data
+set:
+```{r}
+dtSummary[cumulativeFreq<0.9] %>%
+  dim[1]
+```
+
+```{r}
+rm(dtSummary)
+```
 ### Ngrams
 
 Next we compute 2,3 and 4 grams using function implemented in
-separated file.
+separa
 
 
 ```{r ngrams}
-tus.ngrams <- ngramDTs(tus.tokens, 4)
-
+tus.ngrams <- getTokensCsv("tus.tokens") %>%
+  ngramDTs(tus.tokens, 3)
 ```
 
-Now let's check which are the most popular 2-grams, 3-grams and
-4-grams in tweets.
+Now let's check which are the most popular 2-grams and  3-grams 
+in tweets.
 
 ```{r 2grams}
 tus.2 <- tus.ngrams[[2]][,.(counts=.N),by=.(tokens1, tokens2)][order(-counts),]
 tus.2.head <- tus.2[1:40,.(words=paste(tokens1, tokens2), counts)]
 p2 <- plotFreq(tus.2.head)
 p2
-
 ```
 
 ```{r 3grams}
@@ -144,6 +116,30 @@ back-off model together with Good-Turing estimation. This allows us to
 choose in a smooth way between predictions obtained from n-grams
 models with different n. We plan to use n up to 5.
 
-For faster prediction we use data.table package. We will also use
-filehash packages for storing computed frequency tables.
+At the moment processing is slow and buggy. We would like to improve it 
+maybe used external scripts written in bash or C.
 
+# How we wrote this report
+
+## Completed Code
+
+The code is available at
+https://github.com/sbartek/textPrediction In particular, the script
+`procUS.R` is responsible for downloading and it is preprocess data
+using functions that are included in the file `textPred.R`.
+
+## Steps
+
+First we download data using the function `downloadCourseraSwiftKey`
+which we implemented in `textPred.R`.
+
+Now it was time for cleaning. We have read the file, then we transform
+the vector into data.table, since the operations we were faster (the
+most remarkable is `fread`).
+
+Next, we lower case of all letter, and then we deal with is
+punctuation. What we did is that we treated symbols `. , ? ... ; ! : () "`
+as the one that divide the message (another future strategy is to only
+remove them). We also include here a lonely `-`. Then we remove extra
+empty spaces and finally we tokenize them. Here we use function
+`basicDT` also implemented in `textPred.R`.

@@ -7,9 +7,10 @@ library('ggplot2')
 library('gridExtra')
 library('wordcloud')
 
-
 LINE2READ <- 10000 # uses readLines, negative values likes -1L indicate reading everything 
-BLOCKSIZE <- 1000
+
+BLOCKS2READ <- 1
+BLOCKSIZE <- 2500000
 
 filehashOption(defaultType="RDS")
 cache.dir <- "cache/dbCache"
@@ -28,6 +29,33 @@ downloadCourseraSwiftKey <- function() {
   if (!file.exists('data/final')) unzip(zip.fn, exdir='data')
 }
 
+getTokensFN <- function(vn) {
+  paste0("data/", vn, ".csv")
+}
+
+createTokensCsv <- function(vn, fn) {
+  blockCount <- 0
+  conIn <- file(fn, "r")
+  conOut <- file(getTokensFN(vn), "w")
+  v <- read.datafile(conIn, n=BLOCKSIZE)
+  while (!is.null(v) && (blockCount < BLOCKS2READ)) {
+    blockCount <- blockCount + 1
+    write.table(basicDT(v), file=conOut,
+                quote=FALSE, row.names=FALSE, col.names=FALSE)
+    v <- read.datafile(conIn, n=BLOCKSIZE)
+    cat(blockCount)
+    cat(".")
+  }
+  cat("\n")
+  close(conIn)
+  close(conOut)
+}
+
+getTokensCsv <- function(vn) {
+  fread(getTokensFN(vn)) %>%
+    setnames(c("count", "tokens1"))
+}
+
 getTokens <- function(vn, fn, n=LINE2READ) {
   if (dbExists(dbCache, vn)) {
     v <- dbFetch(dbCache, vn)
@@ -42,8 +70,8 @@ getTokens <- function(vn, fn, n=LINE2READ) {
 basicDT <- function(dt) {
   ## dt: data.table with column words: characters
   dt %>%
-    cleanDT #%>>%
-    #tokenizeDT
+    cleanDT %>%
+    tokenizeDT
 }
 
 cleanDT <- function(dt) {
@@ -59,9 +87,13 @@ txts.clean <- function(txts) {
 }
 
 
-read.datafile <- function(fn, n=LINE2READ) {
-  txts <- readLines(fn, n)
-  data.table(words=txts)
+read.datafile <- function(con, n=LINE2READ) {
+  txts <- readLines(con, n)
+  if (length(txts) != 0) {
+    return(data.table(words=txts))
+  } else {
+    return(NULL)
+  }
 }
 
 treatPunctuation <- function(txts) {
@@ -79,7 +111,7 @@ removeExtraSpace <- function(txts) {
 txt.tokens <- function(txt) unlist(strsplit(txt, ' '))
 
 txts.tokens <- function(txts) {
-  txts %>>%
+  txts %>%
     txt.tokens
 }
 
@@ -282,4 +314,22 @@ addNGramsFH <- function(name, nameTotal, n, dt, K=3, echo=FALSE) {
     }
     dbDeletePartRecords(name, echo)
   }
+}
+
+
+## Summaries and ploting:
+
+tokens.freq <- function(dt) {
+  dt[,.(counts=.N),by=tokens1] %>%
+    .[order(-counts)] %>%
+    .[, freq:=counts/sum(counts)]
+}
+
+plotFreq <- function(dt) {
+  ggplot(dt) +
+    geom_bar(aes(x=reorder(words, freq), y=freq), stat="identity") +
+    xlab("Words")+
+    ylab('Frequencies') +
+    scale_y_continuous(labels = scales::percent) +
+    coord_flip()
 }
