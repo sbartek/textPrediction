@@ -2,6 +2,7 @@ data/*
 cache/*
 
 project_files/**
+rsconnect/**
 .Rhistory
 
 .\#*

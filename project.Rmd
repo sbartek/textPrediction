@@ -20,27 +20,27 @@ this document contains a basic exploratory analysis of the data.
 
 ### Tweets Data
 
-File `en_US.blogs.txt` has the following number of lines:
+#### File has the following number of lines:
 
 ```{r}
 fn <- 'data/final/en_US/en_US.twitter.txt'
-system(paste("wc -l", fn))
+system(paste("wc -l", fn), intern = TRUE)
 ```
 
-The total number of words is:
+#### The total number of words is:
 ```{r}
 dt <- getTokensCsv("tus.tokens")
 dim(dt)[1]
 ```
 
-The number of unique words is:
+#### The number of unique words is:
 ```{r}
 dtSummary <- tokens.freq(dt)
 rm(dt)
 dim(dtSummary)[1]
 ```
 
-The most popular words:
+#### The most popular words:
 
 ```{r worldcloud}
 wordcloud(dtSummary[1:500, tokens1], dtSummary[1:500, counts],
@@ -57,67 +57,140 @@ plotFreq(dtSummary[1:40, .(words=tokens1, freq)])
 The following number of words cover 50% of words instances in the data
 set:
 ```{r}
-dtSummary[, cumulativeFreq:=cumsum(counts)/sum(counts)]
-dtSummary[cumulativeFreq<0.5] %>%
-  dim[1]
+dtSummary[, cumulativeFreq:=cumsum(counts)/sum(counts)]%>%
+  .[cumulativeFreq<0.5, tokens1] %>%
+  length
 ```
 
 The following number of words cover 50% of words instances in the data
 set:
 ```{r}
-dtSummary[cumulativeFreq<0.9] %>%
-  dim[1]
+dtSummary[cumulativeFreq<0.9, tokens1] %>%
+  length
 ```
 
 ```{r}
 rm(dtSummary)
 ```
-### Ngrams
+### News Data
 
-Next we compute 2,3 and 4 grams using function implemented in
-separa
+#### File has the following number of lines:
 
-
-```{r ngrams}
-tus.ngrams <- getTokensCsv("tus.tokens") %>%
-  ngramDTs(tus.tokens, 3)
+```{r}
+fn <- 'data/final/en_US/en_US.news.txt'
+system(paste("wc -l", fn), intern = TRUE)
 ```
 
-Now let's check which are the most popular 2-grams and  3-grams 
-in tweets.
-
-```{r 2grams}
-tus.2 <- tus.ngrams[[2]][,.(counts=.N),by=.(tokens1, tokens2)][order(-counts),]
-tus.2.head <- tus.2[1:40,.(words=paste(tokens1, tokens2), counts)]
-p2 <- plotFreq(tus.2.head)
-p2
+#### The total number of words is:
+```{r}
+dt <- getTokensCsv("nus.tokens")
+dim(dt)[1]
 ```
 
-```{r 3grams}
-tus.3 <- tus.ngrams[[3]][,.(counts=.N),by=.(tokens1, tokens2, tokens3)][order(-counts),]
-tus.3.head <- tus.3[1:40,.(words=paste(tokens1, tokens2, tokens3), counts)]
-p3 <- plotFreq(tus.3.head)
-p3
-
+#### The number of unique words is:
+```{r}
+dtSummary <- tokens.freq(dt)
+rm(dt)
+dim(dtSummary)[1]
 ```
 
-```{r 4grams}
-tus.4 <- tus.ngrams[[4]][,.(counts=.N),by=.(tokens1, tokens2, tokens3, tokens4)][order(-counts),]
-tus.4.head <- tus.4[1:40,.(words=paste(tokens1, tokens2, tokens3, tokens4), counts)]
-p4 <- plotFreq(tus.4.head)
-p4
+#### The most popular words:
 
+```{r worldcloudNews}
+wordcloud(dtSummary[1:500, tokens1], dtSummary[1:500, counts],
+          scale=c(5,0.5),
+          random.order=FALSE,
+          rot.per=0.35, use.r.layout=FALSE,
+          colors=brewer.pal(8, "Dark2"))
 ```
 
-### Plans
+```{r}
+plotFreq(dtSummary[1:40, .(words=tokens1, freq)])
+```
+
+The following number of words cover 50% of words instances in the data
+set:
+```{r}
+dtSummary[, cumulativeFreq:=cumsum(counts)/sum(counts)]%>%
+  .[cumulativeFreq<0.5, tokens1] %>%
+  length
+```
+
+The following number of words cover 50% of words instances in the data
+set:
+```{r}
+dtSummary[cumulativeFreq<0.9, tokens1] %>%
+  length
+```
+
+```{r}
+rm(dtSummary)
+```
+
+### Blogs Data
+
+#### File has the following number of lines:
+
+```{r}
+fn <- 'data/final/en_US/en_US.blogs.txt'
+system(paste("wc -l", fn), intern = TRUE)
+```
+
+#### The total number of words is:
+```{r}
+dt <- getTokensCsv("bus.tokens")
+dim(dt)[1]
+```
+
+#### The number of unique words is:
+```{r}
+dtSummary <- tokens.freq(dt)
+rm(dt)
+dim(dtSummary)[1]
+```
+
+#### The most popular words:
+
+```{r worldcloudBlog}
+wordcloud(dtSummary[1:500, tokens1], dtSummary[1:500, counts],
+          scale=c(5,0.5),
+          random.order=FALSE,
+          rot.per=0.35, use.r.layout=FALSE,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+```{r}
+plotFreq(dtSummary[1:40, .(words=tokens1, freq)])
+```
+
+The following number of words cover 50% of words instances in the data
+set:
+```{r}
+dtSummary[, cumulativeFreq:=cumsum(counts)/sum(counts)]%>%
+  .[cumulativeFreq<0.5, tokens1] %>%
+  length
+```
+
+The following number of words cover 50% of words instances in the data
+set:
+```{r}
+dtSummary[cumulativeFreq<0.9, tokens1] %>%
+  length
+```
+
+```{r}
+rm(dtSummary)
+```
+
+# Plans
 
 Once we have 2,3 and 4 grams calculated, we are planing to use Katz's
 back-off model together with Good-Turing estimation. This allows us to
 choose in a smooth way between predictions obtained from n-grams
 models with different n. We plan to use n up to 5.
 
-At the moment processing is slow and buggy. We would like to improve it 
-maybe used external scripts written in bash or C.
+At the moment the code that create ngrams is slow and buggy. We would
+like to improve by use external scripts written in bash or C.
 
 # How we wrote this report
 
